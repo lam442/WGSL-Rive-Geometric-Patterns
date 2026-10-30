@@ -1,0 +1,57 @@
+struct Params {
+    length: f32,
+    thickness: f32,
+    rotation: f32,
+    spacing_x: f32,
+    spacing_y: f32,
+    stagger: f32,
+    _pad1: f32,
+    _pad2: f32,
+    cross_color: vec4<f32>,
+}
+
+@group(0) @binding(0) var<uniform> params: Params;
+
+@vertex
+fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
+    var pos = array<vec2<f32>, 3>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(3.0, -1.0),
+        vec2<f32>(-1.0, 3.0),
+    );
+    return vec4<f32>(pos[vid], 0.0, 1.0);
+}
+
+@fragment
+fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
+    let spacing = max(
+        vec2<f32>(params.spacing_x, params.spacing_y),
+        vec2<f32>(1.0, 1.0),
+    );
+    let row = floor(frag_coord.y / spacing.y);
+    let row_odd = row - floor(row * 0.5) * 2.0;
+    let p_stag = vec2<f32>(frag_coord.x - row_odd * (params.stagger * 0.01) * spacing.x, frag_coord.y);
+    let cell_pos = (p_stag - floor(p_stag / spacing) * spacing) - spacing * 0.5;
+
+    let rad = -params.rotation * 0.017453292519943295;
+    let c = cos(rad);
+    let s = sin(rad);
+    let p = abs(vec2<f32>(
+        cell_pos.x * c - cell_pos.y * s,
+        cell_pos.x * s + cell_pos.y * c,
+    ));
+
+    let half_len = max(params.length * 0.5, 0.0);
+    let half_th = max(params.thickness * 0.5, 0.0);
+
+    let q1 = p - vec2<f32>(half_len, half_th);
+    let d1 = length(max(q1, vec2<f32>(0.0, 0.0))) + min(max(q1.x, q1.y), 0.0);
+
+    let q2 = p - vec2<f32>(half_th, half_len);
+    let d2 = length(max(q2, vec2<f32>(0.0, 0.0))) + min(max(q2.x, q2.y), 0.0);
+
+    let dist = min(d1, d2);
+
+    let alpha = (1.0 - smoothstep(-0.75, 0.75, dist)) * params.cross_color.a;
+    return vec4<f32>(params.cross_color.rgb * alpha, alpha);
+}
